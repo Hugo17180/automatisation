@@ -1,3 +1,5 @@
 .venv/
 .terraform/
 tfplan
+.DS_Store
+*.Zone.Identifier
