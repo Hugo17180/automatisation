@@ -1,5 +1,5 @@
 provider "aws" {
-  region                      = "us-east-1"
+  region = "us-east-1"
 
 
   skip_credentials_validation = true
@@ -7,8 +7,8 @@ provider "aws" {
   skip_requesting_account_id  = true
   s3_use_path_style           = true # Important pour LocalStack
 
-  access_key                  = "test"
-  secret_key                  = "test"
+  access_key = "test"
+  secret_key = "test"
 
   endpoints {
     s3  = "http://localhost:4566"
