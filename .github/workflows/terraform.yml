@@ -79,7 +79,7 @@ jobs:
           cat /tmp/infracost-table.txt >> $GITHUB_STEP_SUMMARY
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply -auto-approve -var-file=dev.tfvars
         working-directory: ./terraform
 
       - name: Install Python 3
