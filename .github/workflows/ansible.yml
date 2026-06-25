@@ -1,0 +1,93 @@
+name: Ansible Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  ansible:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Mise en place de la clé SSH via GitHub Secrets
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      # 2. Construction de l'image Docker
+      - name: Build managed node image
+        run: docker build -t managed-node ./ansible
+
+      # 3. Démarrage du conteneur
+      - name: Start managed node container
+        run: docker run -d --name managed-node -p 2222:22 managed-node
+
+      # 4. Attente de disponibilité SSH
+      - name: Wait for SSH to be ready
+        run: |
+          TIMEOUT=30
+          ELAPSED=0
+          until ssh -o StrictHostKeyChecking=no -o ConnectTimeout=2 \
+                -i ~/.ssh/id_rsa -p 2222 ynov@127.0.0.1 echo "SSH ready" 2>/dev/null; do
+            if [ $ELAPSED -ge $TIMEOUT ]; then
+              echo "Timed out waiting for SSH"
+              docker logs managed-node
+              exit 1
+            fi
+            sleep 2
+            ELAPSED=$((ELAPSED + 2))
+          done
+
+      # 5. Installation des outils
+      - name: Install Ansible and tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible ansible-lint
+
+      # 6. Lint et Sécurité
+      - name: Ansible Lint
+        id: lint
+        run: ansible-lint deploy.yml > lint_report.txt
+        working-directory: ./ansible
+        continue-on-error: true
+
+      - name: Checkov - Ansible Security Scan
+        id: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: ./ansible
+          framework: ansible
+          output_format: github_failed_only
+          quiet: true
+          soft_fail: true
+
+      # 7. Exécution du playbook
+      - name: Run Ansible Playbook
+        run: |
+          ansible-playbook deploy.yml \
+            -i hosts_docker \
+            -e "ansible_ssh_private_key_file=~/.ssh/id_rsa" \
+            -e "ansible_ssh_extra_args='-o StrictHostKeyChecking=no'"
+        working-directory: ./ansible
+
+      # 8. Vérifications
+      - name: Verify Nginx is running on managed node
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -p 2222 ynov@127.0.0.1 \
+            "pgrep nginx && echo 'Nginx is running' || (echo 'Nginx is NOT running' && exit 1)"
+
+      - name: Verify Nginx serves HTTP traffic
+        run: curl -f http://127.0.0.1:2222 || (echo "Nginx is not serving traffic" && exit 1)
+
+      # 9. Publication du rapport
+      - name: Publish Report
+        if: always()
+        run: |
+          echo "## Ansible CI Results" >> $GITHUB_STEP_SUMMARY
+          echo "### Lint Results" >> $GITHUB_STEP_SUMMARY
+          if [ -f ansible/lint_report.txt ]; then cat ansible/lint_report.txt >> $GITHUB_STEP_SUMMARY; else echo "No lint report" >> $GITHUB_STEP_SUMMARY; fi

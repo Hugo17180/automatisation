@@ -1,0 +1,63 @@
+---
+- name: YNOV TP 2 - Déploiement complet
+  hosts: all
+  become: yes
+  vars:
+    nginx_port: 8080
+    cache_duration: "1y"
+    cache_no_store: "-1y"
+    ssl_enabled: false
+
+  tasks:
+    - name: Installer Nginx
+      ansible.builtin.package:
+        name: nginx
+        state: present
+        update_cache: yes
+
+    - name: Créer le répertoire de l'application
+      ansible.builtin.file:
+        path: /var/www/html/olympic-games-starter
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Copier les fichiers Angular
+      ansible.builtin.copy:
+        src: app/olympic-games-starter/
+        dest: /var/www/html/olympic-games-starter/
+
+    - name: Appliquer la configuration Nginx via template
+      ansible.builtin.template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/sites-available/app.conf
+      notify: Redémarrer Nginx
+      when: ansible_os_family == "Debian"
+
+    - name: Activer le site Nginx
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/app.conf
+        dest: /etc/nginx/sites-enabled/app.conf
+        state: link
+      when: ansible_os_family == "Debian"
+      notify: Redémarrer Nginx
+
+    - name: Désactiver le site par défaut
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      when: ansible_os_family == "Debian"
+      notify: Redémarrer Nginx
+
+    - name: Démarrer et activer Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: Redémarrer Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
