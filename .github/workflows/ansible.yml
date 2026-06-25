@@ -25,7 +25,7 @@ jobs:
 
       # 3. Démarrage du conteneur
       - name: Start managed node container
-        run: docker run -d --name managed-node -p 2222:22 managed-node
+        run: docker run -d --name managed-node -p 2222:22 -p 8080:80 managed-node
 
       # 4. Attente de disponibilité SSH
       - name: Wait for SSH to be ready
@@ -82,7 +82,7 @@ jobs:
             "pgrep nginx && echo 'Nginx is running' || (echo 'Nginx is NOT running' && exit 1)"
 
       - name: Verify Nginx serves HTTP traffic
-        run: curl -f http://127.0.0.1:2222 || (echo "Nginx is not serving traffic" && exit 1)
+        run: curl -f http://127.0.0.1:8080 || (echo "Nginx is not serving traffic" && exit 1)
 
       # 9. Publication du rapport
       - name: Publish Report
