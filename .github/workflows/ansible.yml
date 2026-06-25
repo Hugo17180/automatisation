@@ -25,7 +25,7 @@ jobs:
 
       # 3. Démarrage du conteneur
       - name: Start managed node container
-        run: docker run -d --name managed-node -p 2222:22 -p 8080:80 managed-node
+        run: docker run -d --name managed-node -p 2222:22 -p 8080:8080 managed-node
 
       # 4. Attente de disponibilité SSH
       - name: Wait for SSH to be ready
